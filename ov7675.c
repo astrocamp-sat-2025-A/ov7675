@@ -136,6 +136,10 @@ void ov7675_init() {
     ov7675_write(0x12, 0x14); // COM7: bit[4]=QVGA選択, bit[2]=RGBモード
     ov7675_write(0x40, 0x10); // COM15: RGB565フォーマット
 
+    // 1. ホワイトバランス、ゲイン、露出の自動制御を有効化
+    //    COM8: AGC(ゲイン), AWB(ホワイトバランス), AEC(露出) を有効にする
+    ov7675_write(0x13, 0x8F); // [cite: 1096]
+
     // QVGA用のデフォルト設定（一般的な設定値）
     ov7675_write(0x11, 0x01); // クロック分周
     ov7675_write(0x3e, 0x00); // COM14
@@ -224,58 +228,63 @@ int main() {
     // int count = 0;
     // uint8_t byto0 = 0;
     // uint8_t byto1 = 0;
-    printf("Ready to capture. Send 'C' to start.\n");
-    fflush(stdout); // メッセージを即時送信
-    while (getchar() != 'C');
-    
-    pico_set_led(true); // キャプチャ開始時にLED点灯
+    while(true){
 
-    // 1. VSYNC信号を待ってフレームの開始を同期する
-    //    VSYNCがLow -> Highになる瞬間がフレームの開始
-    while (gpio_get(VSYNC)); // VSYNCがLowになるまで待つ
-    while (!gpio_get(VSYNC)); // VSYNCがHighになるまで待つ
-
-    write_index = 0; // バッファのインデックスをリセット
-
-    // 2. 1フレーム分 (120行) のデータを取得する
-    for (int y = 0; y < HEIGHT; y++) {
-        // 3. HREF信号を待って、有効なラインデータの開始を同期する
-        while (!gpio_get(HREF));
-
-        // 4. 1ライン分 (160ピクセル * 2バイト) のデータを取得する
-        for (int x = 0; x < WIDTH * 2; x++) {
-            // 5. PCLKの立ち上がりエッジを待つ
-            while (!gpio_get(PCLK));
-
-            // D0-D7(GPIO 0-7)から8bitデータを一括で読み取る
-            uint8_t data = (uint8_t)(gpio_get_all() & 0xFF);
-            
-            // バッファオーバーフローを防ぎつつ、データを格納
-            if (write_index < FRAME_SIZE) {
-                image[write_index++] = data;
-            }
-
-            // 6. PCLKの立ち下がりエッジを待つ (次のクロックに備える)
-            while (gpio_get(PCLK));
-        }
-    }
-    
-    pico_set_led(false); // キャプチャ完了時にLED消灯
-
-    printf("---FRAME_START---\n");
-    for (int i = 0; i < FRAME_SIZE; i++) {
-        // データを16進数2桁 (0埋め) で出力し、スペースで区切る
-        printf("%02X ", image[i]);
+        printf("Ready to capture. Send 'C' to start.\n");
+        fflush(stdout); // メッセージを即時送信
+        while (getchar() != 'C');
         
-        // 16バイトごと（横幅160pxのYUVなら8ピクセル分）に改行して見やすくする
-        if ((i + 1) % 16 == 0) {
-            printf("\n");
-            sleep_ms(1);
+        pico_set_led(true); // キャプチャ開始時にLED点灯
+
+        // 1. VSYNC信号を待ってフレームの開始を同期する
+        //    VSYNCがLow -> Highになる瞬間がフレームの開始
+        while (gpio_get(VSYNC)); // VSYNCがLowになるまで待つ
+        while (!gpio_get(VSYNC)); // VSYNCがHighになるまで待つ
+
+        write_index = 0; // バッファのインデックスをリセット
+
+        // 2. 1フレーム分 (120行) のデータを取得する
+        for (int y = 0; y < HEIGHT; y++) {
+            // 3. HREF信号を待って、有効なラインデータの開始を同期する
+            while (!gpio_get(HREF));
+
+            // 4. 1ライン分 (160ピクセル * 2バイト) のデータを取得する
+            for (int x = 0; x < WIDTH * 2; x++) {
+                // 5. PCLKの立ち上がりエッジを待つ
+                while (!gpio_get(PCLK));
+
+                // D0-D7(GPIO 0-7)から8bitデータを一括で読み取る
+                uint8_t data = (uint8_t)(gpio_get_all() & 0xFF);
+                
+                // バッファオーバーフローを防ぎつつ、データを格納
+                if (write_index < FRAME_SIZE) {
+                    image[write_index++] = data;
+                }
+
+                // 6. PCLKの立ち下がりエッジを待つ (次のクロックに備える)
+                while (gpio_get(PCLK));
+            }
         }
+        
+        pico_set_led(false); // キャプチャ完了時にLED消灯
+
+        printf("---FRAME_START---\n");
+        for (int i = 0; i < FRAME_SIZE; i++) {
+            // データを16進数2桁 (0埋め) で出力し、スペースで区切る
+            printf("%02X ", image[i]);
+            
+            // 16バイトごと（横幅160pxのYUVなら8ピクセル分）に改行して見やすくする
+            if ((i + 1) % 16 == 0) {
+                printf("\n");
+                sleep_ms(1);
+            }
+        }
+        printf("\n---FRAME_END---\n");
+        fflush(stdout); // バッファをフラッシュして即時送信
+        
+        // // 次のキャプチャまで待機
+        sleep_ms(1000);
+        // while(true);
     }
-    printf("\n---FRAME_END---\n");
-    fflush(stdout); // バッファをフラッシュして即時送信
     
-    // 次のキャプチャまで待機
-    while(true);
 }
