@@ -26,12 +26,12 @@ volatile bool frame_started = false;
 volatile bool frame_done = false;
 
 volatile uint32_t write_index = 0;
-uint8_t image[160*120*2] = {0};
+uint8_t image[320*240*2] = {0};
 //uint8_t framebuf[120*160] = {0}; // 仮のバッファ
 // 画像サイズ (QQVGA 160x120, YUV422 → 2byte/pixel)
 
-#define WIDTH  160
-#define HEIGHT 120
+#define WIDTH  320
+#define HEIGHT 240
 #define FRAME_SIZE (WIDTH * HEIGHT * 2)
 
 
@@ -86,41 +86,67 @@ uint8_t ov7675_read(uint8_t reg) {
 }
 
 void ov7675_init() {
-    // Soft reset
-    ov7675_write(0x12, 0x80); 
-    printf("soft-reset\n"); 
+    // // Soft reset
+    // ov7675_write(0x12, 0x80); 
+    // printf("soft-reset\n"); 
+    // sleep_ms(100);
+
+    // // 2. 出力フォーマット: RGB, QQVGA
+    // // COM7 (0x12): RGBモード + QQVGA
+    // // bit[7]=reset, bit[4]=QCIF/QQVGA, bit[2:0]=フォーマット
+    // ov7675_write(0x12, 0x14); // QVGA + RGB565
+
+    // //com15 RGB565フォーマット
+    // ov7675_write(0x40, 0x10);
+
+    // // 1. ホワイトバランス、ゲイン、露出の自動制御を有効化
+    // //    COM8: AGC(ゲイン), AWB(ホワイトバランス), AEC(露出) を有効にする
+    // ov7675_write(0x13, 0x8F); // [cite: 1096]
+
+    // // // COM13 (0x3D): YUV出力設定
+    // // ov7675_write(0x3D, 0xC0); // UV swap, YUV422 enable
+
+    // // // TSLB (0x3A): UYVY順序など
+    // // ov7675_write(0x3A, 0x04); // UYVY
+
+    // // // 3. クロック設定
+    // // ov7675_write(0x11, 0x01); // PCLK = XCLK/2 程度に分周
+
+    // // QVGA用のデフォルト設定（一般的な設定値）
+    // ov7675_write(0x11, 0x01); // クロック分周
+
+    // // 4. スケーラ設定 (QQVGA = QVGA/2)
+    // ov7675_write(0x0C, 0x04); // DCW (Downsample control)
+    // ov7675_write(0x3e, 0x00); // COM14
+    // ov7675_write(0x72, 0x22); // X_SCALER
+    // ov7675_write(0x73, 0xF2); // Y_SCALER
+
+    // // 5. ウィンドウ (例: QVGAからクロップして縮小)
+    // ov7675_write(0x17, 0x16); // HSTART
+    // ov7675_write(0x18, 0x04); // HSTOP
+    // ov7675_write(0x32, 0x80); // HREF
+    // ov7675_write(0x19, 0x02); // VSTART
+    // ov7675_write(0x1A, 0x7A); // VSTOP
+    // ov7675_write(0x03, 0x0A); // VREF
+
+    ov7675_write(0x12, 0x80); // Soft reset
     sleep_ms(100);
 
-    // 2. 出力フォーマット: RGB, QQVGA
-    // COM7 (0x12): RGBモード + QQVGA
-    // bit[7]=reset, bit[4]=QCIF/QQVGA, bit[2:0]=フォーマット
-    ov7675_write(0x12, 0x04); // QQVGA + YUV422
+    // --- フォーマット設定: QVGA, RGB565 ---
+    ov7675_write(0x12, 0x14); // COM7: bit[4]=QVGA選択, bit[2]=RGBモード
+    ov7675_write(0x40, 0x10); // COM15: RGB565フォーマット
 
-    //com15 RGB565フォーマット
-    ov7675_write(0x40, 0x10);
-
-    // // COM13 (0x3D): YUV出力設定
-    // ov7675_write(0x3D, 0xC0); // UV swap, YUV422 enable
-
-    // // TSLB (0x3A): UYVY順序など
-    // ov7675_write(0x3A, 0x04); // UYVY
-
-    // 3. クロック設定
-    ov7675_write(0x11, 0x01); // PCLK = XCLK/2 程度に分周
-
-    // 4. スケーラ設定 (QQVGA = QVGA/2)
-    ov7675_write(0x0C, 0x04); // DCW (Downsample control)
-    ov7675_write(0x3E, 0x19); // PCLK settings with scaling
-    ov7675_write(0x72, 0x22); // X_SCALER
-    ov7675_write(0x73, 0xF2); // Y_SCALER
-
-    // 5. ウィンドウ (例: QVGAからクロップして縮小)
-    ov7675_write(0x17, 0x16); // HSTART
-    ov7675_write(0x18, 0x04); // HSTOP
-    ov7675_write(0x32, 0x80); // HREF
+    // QVGA用のデフォルト設定（一般的な設定値）
+    ov7675_write(0x11, 0x01); // クロック分周
+    ov7675_write(0x3e, 0x00); // COM14
+    
+    // ウィンドウ設定
+    ov7675_write(0x17, 0x13); // HSTART
+    ov7675_write(0x18, 0x01); // HSTOP
+    ov7675_write(0x32, 0xb6); // HREF
     ov7675_write(0x19, 0x02); // VSTART
-    ov7675_write(0x1A, 0x7A); // VSTOP
-    ov7675_write(0x03, 0x0A); // VREF
+    ov7675_write(0x1a, 0x7a); // VSTOP
+    ov7675_write(0x03, 0x0a); // VREF
 }
 
 void GPIO_set(){
@@ -198,6 +224,9 @@ int main() {
     // int count = 0;
     // uint8_t byto0 = 0;
     // uint8_t byto1 = 0;
+    printf("Ready to capture. Send 'C' to start.\n");
+    fflush(stdout); // メッセージを即時送信
+    while (getchar() != 'C');
     
     pico_set_led(true); // キャプチャ開始時にLED点灯
 
@@ -241,6 +270,7 @@ int main() {
         // 16バイトごと（横幅160pxのYUVなら8ピクセル分）に改行して見やすくする
         if ((i + 1) % 16 == 0) {
             printf("\n");
+            sleep_ms(1);
         }
     }
     printf("\n---FRAME_END---\n");
