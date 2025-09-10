@@ -91,16 +91,19 @@ void ov7675_init() {
     printf("soft-reset\n"); 
     sleep_ms(100);
 
-    // 2. 出力フォーマット: YUV, QQVGA
-    // COM7 (0x12): YUVモード + QQVGA
+    // 2. 出力フォーマット: RGB, QQVGA
+    // COM7 (0x12): RGBモード + QQVGA
     // bit[7]=reset, bit[4]=QCIF/QQVGA, bit[2:0]=フォーマット
-    ov7675_write(0x12, 0x10); // QQVGA + YUV422
+    ov7675_write(0x12, 0x04); // QQVGA + YUV422
 
-    // COM13 (0x3D): YUV出力設定
-    ov7675_write(0x3D, 0xC0); // UV swap, YUV422 enable
+    //com15 RGB565フォーマット
+    ov7675_write(0x40, 0x10);
 
-    // TSLB (0x3A): UYVY順序など
-    ov7675_write(0x3A, 0x04); // UYVY
+    // // COM13 (0x3D): YUV出力設定
+    // ov7675_write(0x3D, 0xC0); // UV swap, YUV422 enable
+
+    // // TSLB (0x3A): UYVY順序など
+    // ov7675_write(0x3A, 0x04); // UYVY
 
     // 3. クロック設定
     ov7675_write(0x11, 0x01); // PCLK = XCLK/2 程度に分周
